@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import '../styles/custom.scss';
-import Link from 'next/link';
+import Navbar from "./components/Navbar";
+import BottomMenu from "./components/BottomMenu";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,29 +23,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fa" dir="rtl">
-      <body>
-        <nav className="navbar navbar-expand-lg navbar-light bg-light shadow-sm mb-4" style={{ fontFamily: 'Vazirmatn', direction: 'rtl' }}>
-          <div className="container-fluid">
-            <Link className="navbar-brand fw-bold" href="/dashboard">راز دل</Link>
-            <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="تغییر منو">
-              <span className="navbar-toggler-icon"></span>
-            </button>
-            <div className="collapse navbar-collapse" id="mainNav">
-              <ul className="navbar-nav ms-auto mb-2 mb-lg-0" style={{ gap: 12 }}>
-                <li className="nav-item"><Link className="nav-link" href="/dashboard">داشبورد</Link></li>
-                <li className="nav-item"><Link className="nav-link" href="/newmessage">ارسال پیام</Link></li>
-                <li className="nav-item"><Link className="nav-link" href="/messagebox">صندوق پیام</Link></li>
-                <li className="nav-item"><Link className="nav-link" href="/profile">پروفایل</Link></li>
-                <li className="nav-item"><Link className="nav-link" href="/setting">تنظیمات</Link></li>
-                <li className="nav-item"><Link className="nav-link" href="/meditation">مدیتیشن</Link></li>
-                <li className="nav-item"><Link className="nav-link" href="/about">درباره ما</Link></li>
-                <li className="nav-item"><Link className="nav-link" href="/contact">تماس با ما</Link></li>
-                <li className="nav-item"><Link className="nav-link text-danger" href="/login">خروج</Link></li>
-              </ul>
-            </div>
-          </div>
-        </nav>
-        {children}
+      <head>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" />
+      </head>
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        <Navbar />
+        <main>{children}</main>
+        <BottomMenu />
       </body>
     </html>
   );
