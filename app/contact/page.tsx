@@ -28,54 +28,61 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="container" style={{ maxWidth: 480, margin: "40px auto", direction: "rtl" }}>
-      <div className="card shadow p-4">
-        <h3 className="mb-3 text-center">تماس با ما</h3>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-3">
-            <label className="form-label">نام</label>
-            <input
-              type="text"
-              className="form-control"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="نام شما"
-              disabled={loading}
-            />
+    <main className="flex-grow-1 overflow-auto">
+      <div className="container p-4">
+        <div className="card shadow-lg border-0 rounded-lg p-5">
+          <h1 className="display-5 fw-bold text-center mb-4">تماس با ما</h1>
+          <form onSubmit={handleSubmit}>
+            <div className="form-floating mb-3">
+              <input
+                type="text"
+                className="form-control"
+                id="floatingName"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="نام"
+                disabled={loading}
+              />
+              <label htmlFor="floatingName">نام</label>
+            </div>
+            <div className="form-floating mb-3">
+              <input
+                type="email"
+                className="form-control"
+                id="floatingEmail"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="ایمیل"
+                disabled={loading}
+              />
+              <label htmlFor="floatingEmail">ایمیل</label>
+            </div>
+            <div className="form-floating mb-3">
+              <textarea
+                className="form-control"
+                id="floatingMessage"
+                rows={5}
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                placeholder="پیام شما"
+                style={{ height: '150px' }}
+                disabled={loading}
+              />
+              <label htmlFor="floatingMessage">پیام شما</label>
+            </div>
+            {error && <div className="alert alert-danger text-center py-2 mb-3">{error}</div>}
+            {success && <div className="alert alert-success text-center py-2 mb-3">{success}</div>}
+            <div className="d-grid">
+              <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
+                {loading ? "در حال ارسال..." : "ارسال پیام"}
+              </button>
+            </div>
+          </form>
+          <div className="text-center text-muted mt-4">
+            <p>ایمیل پشتیبانی: support@razedel.com</p>
           </div>
-          <div className="mb-3">
-            <label className="form-label">ایمیل</label>
-            <input
-              type="email"
-              className="form-control"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="ایمیل شما"
-              disabled={loading}
-            />
-          </div>
-          <div className="mb-3">
-            <label className="form-label">پیام</label>
-            <textarea
-              className="form-control"
-              rows={4}
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              placeholder="متن پیام شما"
-              style={{ resize: "none", textAlign: "right" }}
-              disabled={loading}
-            />
-          </div>
-          {error && <div className="alert alert-danger py-2">{error}</div>}
-          {success && <div className="alert alert-success py-2">{success}</div>}
-          <button type="submit" className="btn btn-primary w-100" disabled={loading}>
-            {loading ? "در حال ارسال..." : "ارسال پیام"}
-          </button>
-        </form>
-        <div className="text-center text-muted mt-4" style={{ fontSize: 13 }}>
-          ایمیل پشتیبانی: support@razedel.com
         </div>
       </div>
-    </div>
+    </main>
   );
-} 
+}
