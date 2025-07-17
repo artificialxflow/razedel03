@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "../../firebase";
@@ -31,7 +31,7 @@ export default function NewMessagePage() {
   const [user, setUser] = useState<User | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
@@ -97,68 +97,83 @@ export default function NewMessagePage() {
   };
 
   return (
-    <div className="container" style={{ maxWidth: 480, margin: "40px auto", direction: "rtl" }}>
-      <div className="card shadow p-3">
-        <h3 className="mb-3 text-center">ارسال دل‌نوشته جدید</h3>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-3">
-            <label className="form-label">متن پیام</label>
-            <textarea
-              className="form-control"
-              rows={5}
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              placeholder="دل‌نوشته خود را اینجا بنویسید..."
-              style={{ resize: "none", textAlign: "right" }}
-              disabled={loading}
-            />
-          </div>
-          <div className="mb-3">
-            <label className="form-label">دسته‌بندی احساسی</label>
-            <select
-              className="form-select"
-              value={emotion}
-              onChange={e => setEmotion(e.target.value)}
-              disabled={loading}
-            >
-              <option value="">انتخاب کنید...</option>
-              {EMOTIONS.map(e => (
-                <option key={e} value={e}>{e}</option>
-              ))}
-            </select>
-          </div>
-          <div className="mb-3">
-            <label className="form-label">نوع شنونده</label>
-            <select
-              className="form-select"
-              value={listenerType}
-              onChange={e => setListenerType(e.target.value)}
-              disabled={loading}
-            >
-              <option value="">انتخاب کنید...</option>
-              {LISTENERS.map(l => (
-                <option key={l.value} value={l.value}>{l.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="mb-3">
-            <label className="form-label">فایل صوتی (اختیاری)</label>
-            <input
-              type="file"
-              accept="audio/*"
-              className="form-control"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              disabled={loading}
-            />
-          </div>
-          {error && <div className="alert alert-danger py-2">{error}</div>}
-          {success && <div className="alert alert-success py-2">{success}</div>}
-          <button type="submit" className="btn btn-primary w-100 mt-2" disabled={loading}>
-            {loading ? "در حال ارسال..." : "ارسال پیام"}
-          </button>
-        </form>
+    <main className="flex-grow-1 overflow-auto p-4">
+      <div className="container-fluid">
+        <div className="card shadow-lg border-0 rounded-lg p-5">
+          <h1 className="display-5 fw-bold text-center mb-4">ارسال دل‌نوشته جدید</h1>
+          <form onSubmit={handleSubmit}>
+            <div className="form-floating mb-3">
+              <textarea
+                className="form-control"
+                id="floatingMessage"
+                rows={6}
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                placeholder="دل‌نوشته خود را اینجا بنویسید..."
+                style={{ height: '150px' }}
+                disabled={loading}
+              />
+              <label htmlFor="floatingMessage">متن پیام</label>
+            </div>
+            <div className="row g-3 mb-3">
+              <div className="col-md-6">
+                <div className="form-floating">
+                  <select
+                    className="form-select"
+                    id="floatingEmotion"
+                    value={emotion}
+                    onChange={e => setEmotion(e.target.value)}
+                    disabled={loading}
+                  >
+                    <option value="">انتخاب کنید...</option>
+                    {EMOTIONS.map(e => (
+                      <option key={e} value={e}>{e}</option>
+                    ))}
+                  </select>
+                  <label htmlFor="floatingEmotion">دسته‌بندی احساسی</label>
+                </div>
+              </div>
+              <div className="col-md-6">
+                <div className="form-floating">
+                  <select
+                    className="form-select"
+                    id="floatingListener"
+                    value={listenerType}
+                    onChange={e => setListenerType(e.target.value)}
+                    disabled={loading}
+                  >
+                    <option value="">انتخاب کنید...</option>
+                    {LISTENERS.map(l => (
+                      <option key={l.value} value={l.value}>{l.label}</option>
+                    ))}
+                  </select>
+                  <label htmlFor="floatingListener">نوع شنونده</label>
+                </div>
+              </div>
+            </div>
+            <div className="mb-3">
+              <label htmlFor="audioFile" className="form-label">فایل صوتی (اختیاری)</label>
+              <input
+                type="file"
+                accept="audio/*"
+                className="form-control"
+                id="audioFile"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                disabled={loading}
+              />
+            </div>
+            {error && <div className="alert alert-danger text-center py-2 mb-3">{error}</div>}
+            {success && <div className="alert alert-success text-center py-2 mb-3">{success}</div>}
+            <div className="d-grid">
+              <button type="submit" className="btn btn-primary btn-lg" disabled={loading || !user}>
+                {loading ? "در حال ارسال..." : "ارسال پیام"}
+              </button>
+            </div>
+            {!user && <div className="alert alert-warning text-center py-2 mt-3">برای ارسال پیام باید وارد شوید.</div>}
+          </form>
+        </div>
       </div>
-    </div>
+    </main>
   );
-} 
+}
