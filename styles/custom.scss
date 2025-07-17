@@ -17,10 +17,15 @@
   font-display: swap;
 }
 
+html, body {
+  min-height: 100vh;
+  height: 100%;
+}
 body, html {
   font-family: 'Vazirmatn', Tahoma, Arial, sans-serif;
   direction: rtl;
   background: #fff;
+  color: #333;
 }
 
 body.dark-mode {
@@ -37,6 +42,13 @@ body.dark-mode .alert {
 }
 body.dark-mode .navbar {
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+body.dark-mode .navbar .navbar-brand,
+body.dark-mode .navbar .nav-link {
+  color: #f7c8e0 !important;
+}
+body.dark-mode .navbar .nav-link.text-danger {
+  color: #ff6f91 !important;
 }
 body.dark-mode .form-control {
   background: #232136 !important;
@@ -72,4 +84,16 @@ body.dark-mode .alert-info {
 body.dark-mode .alert-warning {
   background: #33394d !important;
   color: #f7c8e0 !important;
+}
+body.dark-mode .text-muted {
+  color: #bdbdbd !important;
+}
+body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, body.dark-mode h4, body.dark-mode h5, body.dark-mode h6 {
+  color: #f7c8e0 !important;
+}
+body.dark-mode a, body.dark-mode a:visited {
+  color: #a287f4 !important;
+}
+body.dark-mode a.text-decoration-none {
+  color: #a287f4 !important;
 } 
