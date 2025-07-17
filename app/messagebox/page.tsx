@@ -124,53 +124,55 @@ export default function MessageBoxPage() {
   };
 
   return (
-    <div className="container" style={{ maxWidth: 480, margin: "40px auto", direction: "rtl" }}>
-      <div className="card shadow p-3">
-        <h3 className="mb-3 text-center">صندوق پیام‌های من</h3>
-        {!user ? (
-          <div className="alert alert-warning text-center">برای مشاهده پیام‌ها باید وارد شوید.</div>
-        ) : loading ? (
-          <div className="text-center py-4">در حال بارگذاری...</div>
-        ) : messages.length === 0 ? (
-          <div className="alert alert-info text-center">هنوز پیامی ثبت نشده است.</div>
-        ) : (
-          <div className="d-flex flex-column gap-3">
-            {messages.map(msg => (
-              <div key={msg.id} className="card p-3 shadow-sm">
-                <div className="d-flex gap-2 align-items-center mb-2">
-                  {msg.emotion && (
-                    <span className="badge" style={{ background: "#a287f4", color: "#fff", fontSize: 13, padding: "6px 14px", borderRadius: 16 }}>{msg.emotion}</span>
+    <main>
+      <div className="container" style={{ maxWidth: 480, margin: "40px auto", direction: "rtl" }}>
+        <div className="card shadow p-3">
+          <h3 className="mb-3 text-center">صندوق پیام‌های من</h3>
+          {!user ? (
+            <div className="alert alert-warning text-center">برای مشاهده پیام‌ها باید وارد شوید.</div>
+          ) : loading ? (
+            <div className="text-center py-4">در حال بارگذاری...</div>
+          ) : messages.length === 0 ? (
+            <div className="alert alert-info text-center">هنوز پیامی ثبت نشده است.</div>
+          ) : (
+            <div className="d-flex flex-column gap-3">
+              {messages.map(msg => (
+                <div key={msg.id} className="card p-3 shadow-sm">
+                  <div className="d-flex gap-2 align-items-center mb-2">
+                    {msg.emotion && (
+                      <span className="badge" style={{ background: "#a287f4", color: "#fff", fontSize: 13, padding: "6px 14px", borderRadius: 16 }}>{msg.emotion}</span>
+                    )}
+                    {msg.listenerType && (
+                      <span className="badge" style={{ background: msg.listenerType === "ai" ? "#a287f4" : "#f7c8e0", color: msg.listenerType === "ai" ? "#fff" : "#333", fontSize: 13, padding: "6px 14px", borderRadius: 16 }}>
+                        {LISTENER_LABELS[msg.listenerType] || msg.listenerType}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mb-2" style={{ fontSize: 15 }}>{msg.text}</div>
+                  {msg.audioUrl && (
+                    <audio controls style={{ width: "100%", margin: "8px 0" }}>
+                      <source src={msg.audioUrl} type="audio/mpeg" />
+                      مرورگر شما پخش صوت را پشتیبانی نمی‌کند.
+                    </audio>
                   )}
-                  {msg.listenerType && (
-                    <span className="badge" style={{ background: msg.listenerType === "ai" ? "#a287f4" : "#f7c8e0", color: msg.listenerType === "ai" ? "#fff" : "#333", fontSize: 13, padding: "6px 14px", borderRadius: 16 }}>
-                      {LISTENER_LABELS[msg.listenerType] || msg.listenerType}
-                    </span>
-                  )}
+                  <div className="d-flex align-items-center gap-2 mt-2">
+                    <button type="button" className="btn btn-sm btn-outline-success" onClick={() => handleLike(msg.id)}>
+                      👍 {msg.likes || 0}
+                    </button>
+                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleDislike(msg.id)}>
+                      👎 {msg.dislikes || 0}
+                    </button>
+                  </div>
+                  <div className="text-muted mt-2" style={{ fontSize: 13, textAlign: "left" }}>
+                    {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString("fa-IR") : ""}
+                  </div>
+                  <Comments messageId={msg.id} user={user} />
                 </div>
-                <div className="mb-2" style={{ fontSize: 15 }}>{msg.text}</div>
-                {msg.audioUrl && (
-                  <audio controls style={{ width: "100%", margin: "8px 0" }}>
-                    <source src={msg.audioUrl} type="audio/mpeg" />
-                    مرورگر شما پخش صوت را پشتیبانی نمی‌کند.
-                  </audio>
-                )}
-                <div className="d-flex align-items-center gap-2 mt-2">
-                  <button type="button" className="btn btn-sm btn-outline-success" onClick={() => handleLike(msg.id)}>
-                    👍 {msg.likes || 0}
-                  </button>
-                  <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleDislike(msg.id)}>
-                    👎 {msg.dislikes || 0}
-                  </button>
-                </div>
-                <div className="text-muted mt-2" style={{ fontSize: 13, textAlign: "left" }}>
-                  {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString("fa-IR") : ""}
-                </div>
-                <Comments messageId={msg.id} user={user} />
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </main>
   );
-} 
+}
