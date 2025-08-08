@@ -1,8 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { auth } from "../../firebase";
+import { useAuth } from "../../contexts/AuthContext";
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -11,6 +10,14 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { signIn, user } = useAuth();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      router.replace("/dashboard");
+    }
+  }, [user, router]);
 
   // Function to toggle dark mode
   const toggleDarkMode = (isDark: boolean) => {
@@ -29,19 +36,23 @@ export default function LoginPage() {
     toggleDarkMode(isDark);
   }, []);
 
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
+    
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      setLoading(false);
-      router.push("/dashboard");
+      const result = await signIn(email, password);
+      if (result.success) {
+        setLoading(false);
+        router.push("/dashboard");
+      } else {
+        setLoading(false);
+        setError(result.error || "خطا در ورود");
+      }
     } catch (err) {
       setLoading(false);
-      if (err instanceof Error) setError("خطا: " + err.message);
-      else setError("خطای ناشناخته در ورود");
+      setError("خطای ناشناخته در ورود");
     }
   };
 
