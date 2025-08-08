@@ -1,8 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { createUserWithEmailAndPassword } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { auth } from "../../firebase";
+import { useAuth } from "../../contexts/AuthContext";
 import Link from 'next/link';
 
 export default function SignupPage() {
@@ -11,6 +10,14 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { signUp, user } = useAuth();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      router.replace("/dashboard");
+    }
+  }, [user, router]);
 
   // Function to toggle dark mode
   const toggleDarkMode = (isDark: boolean) => {
@@ -33,14 +40,19 @@ export default function SignupPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
+    
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      setLoading(false);
-      router.push("/dashboard");
+      const result = await signUp(email, password);
+      if (result.success) {
+        setLoading(false);
+        router.push("/dashboard");
+      } else {
+        setLoading(false);
+        setError(result.error || "خطا در ثبت‌نام");
+      }
     } catch (err) {
       setLoading(false);
-      if (err instanceof Error) setError("خطا: " + err.message);
-      else setError("خطای ناشناخته در ثبت‌نام");
+      setError("خطای ناشناخته در ثبت‌نام");
     }
   };
 
