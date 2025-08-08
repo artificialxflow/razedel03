@@ -1,8 +1,7 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { signOut, onAuthStateChanged, User } from "firebase/auth";
+import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "../../firebase";
+import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
 
 // Mock data for user stats and activity
@@ -20,24 +19,33 @@ const recentActivity = [
 ];
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
+  const { user, loading, signOut } = useAuth();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      if (!u) {
-        router.replace("/login");
-      } else {
-        setUser(u);
-      }
-    });
-    return () => unsubscribe();
-  }, [router]);
+    if (!loading && !user) {
+      router.replace("/login");
+    }
+  }, [user, loading, router]);
 
   const handleLogout = async () => {
-    await signOut(auth);
-    router.replace("/login");
+    try {
+      await signOut();
+      router.replace("/login");
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center vh-100">
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">در حال بارگذاری...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) return null;
 
@@ -49,7 +57,7 @@ export default function ProfilePage() {
             <div className="card shadow-lg border-0 rounded-lg overflow-hidden">
               <div className="card-header bg-primary text-white p-4 text-center">
                 <img 
-                  src={`https://i.pravatar.cc/150?u=${user.uid}`}
+                  src={`https://i.pravatar.cc/150?u=${user.id}`}
                   alt="Profile Picture"
                   className="rounded-circle img-thumbnail mb-3" 
                   width={120}
