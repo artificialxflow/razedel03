@@ -52,10 +52,27 @@ export const AuthProvider = ({ children }) => {
 
   const signUp = async (email, password) => {
     try {
+      console.log('Attempting signup with:', { email, password: '***' });
       const { data, error } = await auth.signUp(email, password);
-      if (error) throw error;
+      console.log('Signup response:', { data, error });
+      
+      if (error) {
+        console.error('Signup error:', error);
+        throw error;
+      }
+      
+      // بررسی اینکه آیا کاربر نیاز به تایید ایمیل دارد
+      if (data?.user && !data?.session) {
+        return { 
+          success: true, 
+          data,
+          message: "لطفاً ایمیل خود را بررسی کرده و روی لینک تایید کلیک کنید."
+        };
+      }
+      
       return { success: true, data };
     } catch (error) {
+      console.error('Signup exception:', error);
       return { success: false, error: error.message };
     }
   };
