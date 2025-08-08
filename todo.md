@@ -67,6 +67,8 @@
 - ✅ رفع خطاهای build و deploy
 - ✅ تست کامل build در محیط production
 - ✅ بهبود error handling در supabase.js
+- ✅ بهبود SQL Schema با IF NOT EXISTS و DROP IF EXISTS
+- ✅ تنظیم متغیرهای محیطی در Vercel
 
 ## مشکلات حل شده:
 - ✅ خطای "Module not found: Can't resolve 'firebase/auth'" در profile/page.tsx
@@ -76,9 +78,14 @@
 - ✅ خطای "supabaseUrl is required" در production build
 
 ## مشکل فعلی:
-- [ ] تنظیم متغیرهای محیطی Supabase در Vercel:
+- [x] تنظیم متغیرهای محیطی Supabase در Vercel:
   - NEXT_PUBLIC_SUPABASE_URL
   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+- [ ] اجرای مجدد SQL Schema در Supabase (با بهبودهای جدید)
+- [ ] ایجاد Storage Buckets در Supabase
+- [x] بهبود صفحه ثبت‌نام با پیام تایید ایمیل
+- [x] ایجاد صفحه تایید ایمیل
+- [ ] تنظیم Redirect URLs در Supabase
 
 ## مرحله بعدی:
 1. **تنظیم متغیرهای محیطی در Vercel** (ضروری برای deploy)
