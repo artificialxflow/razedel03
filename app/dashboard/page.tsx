@@ -1,24 +1,28 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
+import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "../../firebase";
+import { useAuth } from "../../contexts/AuthContext";
 import Link from 'next/link';
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      if (!u) {
-        router.replace("/login");
-      } else {
-        setUser(u);
-      }
-    });
-    return () => unsubscribe();
-  }, [router]);
+    if (!loading && !user) {
+      router.replace("/login");
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center vh-100">
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">در حال بارگذاری...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) return null;
 
