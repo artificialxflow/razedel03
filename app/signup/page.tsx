@@ -8,6 +8,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { signUp, user } = useAuth();
@@ -45,7 +46,12 @@ export default function SignupPage() {
       const result = await signUp(email, password);
       if (result.success) {
         setLoading(false);
-        router.push("/dashboard");
+        // نمایش پیام موفقیت و درخواست تایید ایمیل
+        setError(""); // پاک کردن خطاهای قبلی
+        setSuccess(result.message || "ثبت‌نام با موفقیت انجام شد! لطفاً ایمیل خود را بررسی کرده و روی لینک تایید کلیک کنید.");
+        // پاک کردن فرم
+        setEmail("");
+        setPassword("");
       } else {
         setLoading(false);
         setError(result.error || "خطا در ثبت‌نام");
@@ -94,6 +100,7 @@ export default function SignupPage() {
                 </div>
                 
                 {error && <div className="alert alert-danger text-center py-2 mb-3">{error}</div>}
+                {success && <div className="alert alert-success text-center py-2 mb-3">{success}</div>}
                 
                 <div className="d-grid">
                   <button type="submit" className="btn btn-success btn-lg" disabled={loading}>
