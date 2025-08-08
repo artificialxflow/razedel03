@@ -1,22 +1,27 @@
 "use client";
 import { useEffect } from "react";
-import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { auth } from "../firebase";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function Home() {
   const router = useRouter();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    if (!loading) {
       if (user) {
         router.replace("/dashboard");
       } else {
         router.replace("/login");
       }
-    });
-    return () => unsubscribe();
-  }, [router]);
+    }
+  }, [user, loading, router]);
 
-  return null;
+  return (
+    <div className="d-flex justify-content-center align-items-center vh-100">
+      <div className="spinner-border text-primary" role="status">
+        <span className="visually-hidden">در حال بارگذاری...</span>
+      </div>
+    </div>
+  );
 }
