@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create profiles table
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
     id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
     full_name TEXT,
@@ -21,7 +21,7 @@ CREATE TABLE profiles (
 );
 
 -- Create messages table
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
     title TEXT,
@@ -42,7 +42,7 @@ CREATE TABLE messages (
 );
 
 -- Create comments table
-CREATE TABLE comments (
+CREATE TABLE IF NOT EXISTS comments (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     message_id UUID REFERENCES messages(id) ON DELETE CASCADE NOT NULL,
     user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE comments (
 );
 
 -- Create likes table
-CREATE TABLE likes (
+CREATE TABLE IF NOT EXISTS likes (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     message_id UUID REFERENCES messages(id) ON DELETE CASCADE NOT NULL,
     user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
@@ -63,9 +63,9 @@ CREATE TABLE likes (
 );
 
 -- Create meditation_content table
-CREATE TABLE meditation_content (
+CREATE TABLE IF NOT EXISTS meditation_content (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    title TEXT NOT NULL,
+    title TEXT NOT NULL UNIQUE,
     description TEXT,
     content_type TEXT CHECK (content_type IN ('quote', 'music', 'meditation', 'breathing')) NOT NULL,
     content TEXT,
@@ -78,7 +78,7 @@ CREATE TABLE meditation_content (
 );
 
 -- Create user_meditation_sessions table
-CREATE TABLE user_meditation_sessions (
+CREATE TABLE IF NOT EXISTS user_meditation_sessions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
     meditation_id UUID REFERENCES meditation_content(id) ON DELETE CASCADE NOT NULL,
@@ -88,7 +88,7 @@ CREATE TABLE user_meditation_sessions (
 );
 
 -- Create subscriptions table
-CREATE TABLE subscriptions (
+CREATE TABLE IF NOT EXISTS subscriptions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
     plan_type TEXT CHECK (plan_type IN ('free', 'basic', 'premium')) DEFAULT 'free',
@@ -104,14 +104,14 @@ CREATE TABLE subscriptions (
 );
 
 -- Create user_settings table
-CREATE TABLE user_settings (
+CREATE TABLE IF NOT EXISTS user_settings (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL UNIQUE,
-    dark_mode BOOLEAN DEFAULT false,
+    theme TEXT DEFAULT 'light',
+    language TEXT DEFAULT 'fa',
     notifications_enabled BOOLEAN DEFAULT true,
     email_notifications BOOLEAN DEFAULT true,
     push_notifications BOOLEAN DEFAULT true,
-    language TEXT DEFAULT 'fa',
     timezone TEXT DEFAULT 'Asia/Tehran',
     privacy_level TEXT CHECK (privacy_level IN ('public', 'friends', 'private')) DEFAULT 'public',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -119,7 +119,7 @@ CREATE TABLE user_settings (
 );
 
 -- Create contact_messages table
-CREATE TABLE contact_messages (
+CREATE TABLE IF NOT EXISTS contact_messages (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT NOT NULL,
@@ -131,7 +131,7 @@ CREATE TABLE contact_messages (
 );
 
 -- Create notifications table
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
     title TEXT NOT NULL,
@@ -142,7 +142,16 @@ CREATE TABLE notifications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create indexes for better performance
+-- Create indexes for better performance (drop if exists first)
+DROP INDEX IF EXISTS idx_messages_user_id;
+DROP INDEX IF EXISTS idx_messages_created_at;
+DROP INDEX IF EXISTS idx_messages_is_public;
+DROP INDEX IF EXISTS idx_comments_message_id;
+DROP INDEX IF EXISTS idx_likes_message_id;
+DROP INDEX IF EXISTS idx_likes_user_id;
+DROP INDEX IF EXISTS idx_notifications_user_id;
+DROP INDEX IF EXISTS idx_notifications_is_read;
+
 CREATE INDEX idx_messages_user_id ON messages(user_id);
 CREATE INDEX idx_messages_created_at ON messages(created_at);
 CREATE INDEX idx_messages_is_public ON messages(is_public);
@@ -166,7 +175,11 @@ ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE contact_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
--- Profiles policies
+-- Profiles policies (drop if exists first)
+DROP POLICY IF EXISTS "Users can view public profiles" ON profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
+
 CREATE POLICY "Users can view public profiles" ON profiles
     FOR SELECT USING (is_public = true OR auth.uid() = id);
 
@@ -176,7 +189,12 @@ CREATE POLICY "Users can update own profile" ON profiles
 CREATE POLICY "Users can insert own profile" ON profiles
     FOR INSERT WITH CHECK (auth.uid() = id);
 
--- Messages policies
+-- Messages policies (drop if exists first)
+DROP POLICY IF EXISTS "Users can view public messages" ON messages;
+DROP POLICY IF EXISTS "Users can insert own messages" ON messages;
+DROP POLICY IF EXISTS "Users can update own messages" ON messages;
+DROP POLICY IF EXISTS "Users can delete own messages" ON messages;
+
 CREATE POLICY "Users can view public messages" ON messages
     FOR SELECT USING (is_public = true OR auth.uid() = user_id);
 
@@ -189,7 +207,12 @@ CREATE POLICY "Users can update own messages" ON messages
 CREATE POLICY "Users can delete own messages" ON messages
     FOR DELETE USING (auth.uid() = user_id);
 
--- Comments policies
+-- Comments policies (drop if exists first)
+DROP POLICY IF EXISTS "Users can view comments on public messages" ON comments;
+DROP POLICY IF EXISTS "Users can insert comments" ON comments;
+DROP POLICY IF EXISTS "Users can update own comments" ON comments;
+DROP POLICY IF EXISTS "Users can delete own comments" ON comments;
+
 CREATE POLICY "Users can view comments on public messages" ON comments
     FOR SELECT USING (
         EXISTS (
@@ -208,7 +231,12 @@ CREATE POLICY "Users can update own comments" ON comments
 CREATE POLICY "Users can delete own comments" ON comments
     FOR DELETE USING (auth.uid() = user_id);
 
--- Likes policies
+-- Likes policies (drop if exists first)
+DROP POLICY IF EXISTS "Users can view likes on public messages" ON likes;
+DROP POLICY IF EXISTS "Users can insert likes" ON likes;
+DROP POLICY IF EXISTS "Users can update own likes" ON likes;
+DROP POLICY IF EXISTS "Users can delete own likes" ON likes;
+
 CREATE POLICY "Users can view likes on public messages" ON likes
     FOR SELECT USING (
         EXISTS (
@@ -227,11 +255,17 @@ CREATE POLICY "Users can update own likes" ON likes
 CREATE POLICY "Users can delete own likes" ON likes
     FOR DELETE USING (auth.uid() = user_id);
 
--- Meditation content policies (public read, admin write)
+-- Meditation content policies (public read, admin write) (drop if exists first)
+DROP POLICY IF EXISTS "Anyone can view active meditation content" ON meditation_content;
+
 CREATE POLICY "Anyone can view active meditation content" ON meditation_content
     FOR SELECT USING (is_active = true);
 
--- User meditation sessions policies
+-- User meditation sessions policies (drop if exists first)
+DROP POLICY IF EXISTS "Users can view own sessions" ON user_meditation_sessions;
+DROP POLICY IF EXISTS "Users can insert own sessions" ON user_meditation_sessions;
+DROP POLICY IF EXISTS "Users can update own sessions" ON user_meditation_sessions;
+
 CREATE POLICY "Users can view own sessions" ON user_meditation_sessions
     FOR SELECT USING (auth.uid() = user_id);
 
@@ -241,14 +275,21 @@ CREATE POLICY "Users can insert own sessions" ON user_meditation_sessions
 CREATE POLICY "Users can update own sessions" ON user_meditation_sessions
     FOR UPDATE USING (auth.uid() = user_id);
 
--- Subscriptions policies
+-- Subscriptions policies (drop if exists first)
+DROP POLICY IF EXISTS "Users can view own subscriptions" ON subscriptions;
+DROP POLICY IF EXISTS "Users can insert own subscriptions" ON subscriptions;
+
 CREATE POLICY "Users can view own subscriptions" ON subscriptions
     FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert own subscriptions" ON subscriptions
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
--- User settings policies
+-- User settings policies (drop if exists first)
+DROP POLICY IF EXISTS "Users can view own settings" ON user_settings;
+DROP POLICY IF EXISTS "Users can insert own settings" ON user_settings;
+DROP POLICY IF EXISTS "Users can update own settings" ON user_settings;
+
 CREATE POLICY "Users can view own settings" ON user_settings
     FOR SELECT USING (auth.uid() = user_id);
 
@@ -258,13 +299,18 @@ CREATE POLICY "Users can insert own settings" ON user_settings
 CREATE POLICY "Users can update own settings" ON user_settings
     FOR UPDATE USING (auth.uid() = user_id);
 
--- Contact messages policies (admin only)
+-- Contact messages policies (admin only) (drop if exists first)
+DROP POLICY IF EXISTS "Only admins can view contact messages" ON contact_messages;
+
 CREATE POLICY "Only admins can view contact messages" ON contact_messages
     FOR ALL USING (auth.uid() IN (
         SELECT id FROM profiles WHERE email = 'admin@razedel.com'
     ));
 
--- Notifications policies
+-- Notifications policies (drop if exists first)
+DROP POLICY IF EXISTS "Users can view own notifications" ON notifications;
+DROP POLICY IF EXISTS "Users can update own notifications" ON notifications;
+
 CREATE POLICY "Users can view own notifications" ON notifications
     FOR SELECT USING (auth.uid() = user_id);
 
@@ -275,18 +321,34 @@ CREATE POLICY "Users can update own notifications" ON notifications
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO public.profiles (id, email, full_name, username)
-    VALUES (
-        NEW.id,
-        NEW.email,
-        COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
-        COALESCE(NEW.raw_user_meta_data->>'username', '')
-    );
+    -- Check if profile already exists
+    IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = NEW.id) THEN
+        INSERT INTO public.profiles (id, email, full_name, username)
+        VALUES (
+            NEW.id,
+            NEW.email,
+            COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
+            COALESCE(NEW.raw_user_meta_data->>'username', '')
+        );
+    END IF;
+    
+    -- Also create user settings
+    IF NOT EXISTS (SELECT 1 FROM public.user_settings WHERE user_id = NEW.id) THEN
+        INSERT INTO public.user_settings (user_id, theme, language, notifications_enabled)
+        VALUES (NEW.id, 'light', 'fa', true);
+    END IF;
+    
     RETURN NEW;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Log error but don't fail the signup
+        RAISE WARNING 'Error creating profile for user %: %', NEW.id, SQLERRM;
+        RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Create trigger for new user signup
+-- Create trigger for new user signup (drop if exists first)
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
@@ -300,7 +362,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create triggers for updated_at
+-- Create triggers for updated_at (drop if exists first)
+DROP TRIGGER IF EXISTS handle_profiles_updated_at ON profiles;
+DROP TRIGGER IF EXISTS handle_messages_updated_at ON messages;
+DROP TRIGGER IF EXISTS handle_comments_updated_at ON comments;
+DROP TRIGGER IF EXISTS handle_subscriptions_updated_at ON subscriptions;
+DROP TRIGGER IF EXISTS handle_user_settings_updated_at ON user_settings;
+DROP TRIGGER IF EXISTS handle_contact_messages_updated_at ON contact_messages;
+
 CREATE TRIGGER handle_profiles_updated_at
     BEFORE UPDATE ON profiles
     FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
@@ -325,12 +394,13 @@ CREATE TRIGGER handle_contact_messages_updated_at
     BEFORE UPDATE ON contact_messages
     FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
--- Insert sample meditation content
+-- Insert sample meditation content (ignore conflicts)
 INSERT INTO meditation_content (title, description, content_type, content, category, duration_seconds) VALUES
 ('آرامش درونی', 'نفس عمیق بکشید و آرامش را در خود پیدا کنید', 'breathing', 'نفس عمیق بکشید و به آرامی بازدم کنید. این کار را ۱۰ بار تکرار کنید.', 'stress', 300),
 ('شکرگزاری', 'برای نعمت‌های زندگی شکرگزار باشید', 'quote', 'هر روز را با شکرگزاری شروع کنید و زیبایی‌های زندگی را ببینید.', 'gratitude', 180),
 ('مدیتیشن صبحگاهی', 'با انرژی مثبت روز را شروع کنید', 'meditation', 'در سکوت بنشینید و به صدای طبیعت گوش دهید.', 'happiness', 600),
-('تمرکز ذهن', 'ذهن خود را متمرکز کنید', 'meditation', 'به یک نقطه خیره شوید و افکار خود را آرام کنید.', 'focus', 480);
+('تمرکز ذهن', 'ذهن خود را متمرکز کنید', 'meditation', 'به یک نقطه خیره شوید و افکار خود را آرام کنید.', 'focus', 480)
+ON CONFLICT (title) DO NOTHING;
 
 -- Create storage buckets
 -- Note: You need to create these buckets manually in Supabase Dashboard
