@@ -51,7 +51,8 @@ export function useMessages(userId: string) {
   // Comment states
   const [comments, setComments] = useState<{[key: string]: Comment[]}>({});
   const [loadingComments, setLoadingComments] = useState<{[key: string]: boolean}>({});
-  const [commentNotifications, setCommentNotifications] = useState<string[]>([]);
+  const [commentNotifications, setCommentNotifications] = useState<any[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState<{[key: string]: boolean}>({});
 
   // Load messages based on active tab
   const loadMessages = useCallback(async () => {
@@ -168,13 +169,34 @@ export function useMessages(userId: string) {
     ));
   }, []);
 
-  // Add comment notification
-  const addCommentNotification = useCallback((messageId: string) => {
-    setCommentNotifications(prev => [...prev, messageId]);
+  // Add comment notification with message info
+  const addCommentNotification = useCallback((messageId: string, commentData?: any) => {
+    const notification = {
+      id: Date.now().toString(),
+      messageId,
+      commentData,
+      timestamp: new Date(),
+      isRead: false
+    };
     
+    setCommentNotifications(prev => [...prev, notification]);
+    setUnreadNotifications(prev => ({ ...prev, [messageId]: true }));
+    
+    // Auto-remove after 10 seconds
     setTimeout(() => {
-      setCommentNotifications(prev => prev.filter(id => id !== messageId));
-    }, 5000);
+      setCommentNotifications(prev => prev.filter(n => n.id !== notification.id));
+    }, 10000);
+  }, []);
+
+  // Mark notification as read
+  const markNotificationAsRead = useCallback((messageId: string) => {
+    setUnreadNotifications(prev => ({ ...prev, [messageId]: false }));
+  }, []);
+
+  // Clear all notifications
+  const clearAllNotifications = useCallback(() => {
+    setCommentNotifications([]);
+    setUnreadNotifications({});
   }, []);
 
   // Handle comment changes from real-time
@@ -186,7 +208,7 @@ export function useMessages(userId: string) {
         
         updateMessageCommentCount(newComment.message_id, 1);
         await loadCommentWithProfile(newComment.message_id, newComment);
-        addCommentNotification(newComment.message_id);
+        addCommentNotification(newComment.message_id, newComment);
         
       } else if (payload.eventType === 'DELETE') {
         const deletedComment = payload.old;
@@ -290,6 +312,7 @@ export function useMessages(userId: string) {
     comments,
     loadingComments,
     commentNotifications,
+    unreadNotifications,
     
     // Actions
     setError,
@@ -302,6 +325,8 @@ export function useMessages(userId: string) {
     toggleComments,
     updateMessageCommentCount,
     addCommentNotification,
+    markNotificationAsRead,
+    clearAllNotifications,
     handleCommentChange,
     loadCommentWithProfile,
     removeCommentFromState,
