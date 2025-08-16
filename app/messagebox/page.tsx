@@ -22,10 +22,13 @@ export default function MessageboxPage() {
     comments,
     loadingComments,
     commentNotifications,
+    unreadNotifications,
     setError,
     toggleComments,
     updateMessageCommentCount,
     addCommentNotification,
+    markNotificationAsRead,
+    clearAllNotifications,
     handleCommentChange,
     loadCommentWithProfile,
     removeCommentFromState,
@@ -68,24 +71,24 @@ export default function MessageboxPage() {
       const newComment = await submitComment(messageId, () => {
         // Success callback - update message comment count
         updateMessageCommentCount(messageId, 1);
-        
-        // Add comment to state with profile
-        if (user) {
-          const commentWithProfile = {
-            ...newComment,
-            profiles: {
-              full_name: user.user_metadata?.full_name || null,
-              username: user.user_metadata?.username || null,
-              email: user.email || ''
-            }
-          };
-          
-          setComments(prev => ({
-            ...prev,
-            [messageId]: [...(prev[messageId] || []), commentWithProfile]
-          }));
-        }
       });
+
+      // Add comment to state with profile after successful submission
+      if (newComment && user) {
+        const commentWithProfile = {
+          ...newComment,
+          profiles: {
+            full_name: user.user_metadata?.full_name || null,
+            username: user.user_metadata?.username || null,
+            email: user.email || ''
+          }
+        };
+        
+        setComments(prev => ({
+          ...prev,
+          [messageId]: [...(prev[messageId] || []), commentWithProfile]
+        }));
+      }
 
     } catch (error) {
       setError(error instanceof Error ? error.message : 'خطای ناشناخته');
@@ -193,6 +196,22 @@ export default function MessageboxPage() {
 
   return (
     <div className="container mt-4">
+      <style jsx>{`
+        .animate-pulse {
+          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: .5;
+          }
+        }
+        .border-warning {
+          border-color: #ffc107 !important;
+        }
+      `}</style>
       <h1 className="text-center mb-4">
         <i className="bi bi-chat-dots text-primary me-2"></i>
         صندوق پیام ها
@@ -204,13 +223,40 @@ export default function MessageboxPage() {
       {/* اعلان‌های کامنت جدید */}
       {commentNotifications.length > 0 && (
         <div className="alert alert-info alert-dismissible fade show" role="alert">
-          <i className="bi bi-bell-fill me-2"></i>
-          <strong>پیام جدید!</strong> کامنت جدیدی روی پیام شما ارسال شده است.
-          <button 
-            type="button" 
-            className="btn-close" 
-            onClick={() => setCommentNotifications([])}
-          ></button>
+          <div className="d-flex align-items-center justify-content-between">
+            <div className="d-flex align-items-center">
+              <i className="bi bi-bell-fill me-2 text-warning"></i>
+              <div>
+                <strong>پیام جدید!</strong>
+                <div className="small">
+                  {commentNotifications.length} کامنت جدید دریافت شده است
+                </div>
+              </div>
+            </div>
+            <div className="d-flex gap-2">
+              <button 
+                type="button" 
+                className="btn btn-sm btn-outline-info"
+                onClick={() => {
+                  // Scroll to first unread message
+                  const firstUnread = Object.keys(unreadNotifications).find(id => unreadNotifications[id]);
+                  if (firstUnread) {
+                    const element = document.getElementById(`message-${firstUnread}`);
+                    element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    markNotificationAsRead(firstUnread);
+                  }
+                }}
+              >
+                <i className="bi bi-eye me-1"></i>
+                مشاهده
+              </button>
+              <button 
+                type="button" 
+                className="btn-close" 
+                onClick={clearAllNotifications}
+              ></button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -305,7 +351,21 @@ export default function MessageboxPage() {
                   <div className="row">
                     {messages.map((message) => (
                       <div key={message.id} className="col-12 mb-3">
-                        <div className="card border-0 shadow-sm">
+                        <div 
+                          id={`message-${message.id}`}
+                          className={`card border-0 shadow-sm ${
+                            unreadNotifications[message.id] ? 'border-warning border-3' : ''
+                          }`}
+                        >
+                          {/* نشانگر پیام جدید */}
+                          {unreadNotifications[message.id] && (
+                            <div className="position-absolute top-0 start-0 p-2">
+                              <span className="badge bg-warning text-dark animate-pulse">
+                                <i className="bi bi-star-fill me-1"></i>
+                                جدید
+                              </span>
+                            </div>
+                          )}
                           <div className="card-body">
                             {/* Message Header */}
                             <div className="d-flex justify-content-between align-items-start mb-2">
@@ -459,6 +519,57 @@ export default function MessageboxPage() {
                               </div>
                             )}
 
+                            {/* Comment Form - باز می‌شود نزدیک پیام */}
+                            {commentState.replyingTo === message.id && (
+                              <div className="card mt-3 border-primary">
+                                <div className="card-header bg-primary text-white py-2">
+                                  <div className="d-flex align-items-center">
+                                    <i className="bi bi-chat-dots me-2"></i>
+                                    <strong className="small">
+                                      {commentState.replyingToComment ? `پاسخ به کامنت ${commentState.replyingToComment.replyTo}:` : 'نوشتن پاسخ:'}
+                                    </strong>
+                                  </div>
+                                </div>
+                                <div className="card-body p-3">
+                                  <textarea
+                                    className="form-control mb-2"
+                                    rows={3}
+                                    placeholder={commentState.replyingToComment ? `پاسخ خود را به ${commentState.replyingToComment.replyTo} بنویسید...` : "پاسخ خود را بنویسید..."}
+                                    value={commentState.text}
+                                    onChange={(e) => updateCommentState({ text: e.target.value })}
+                                    disabled={commentState.isSubmitting}
+                                  />
+                                  <div className="d-flex gap-2">
+                                    <button
+                                      className="btn btn-primary btn-sm"
+                                      onClick={() => handleSubmitComment(message.id)}
+                                      disabled={commentState.isSubmitting || !commentState.text.trim()}
+                                    >
+                                      {commentState.isSubmitting ? (
+                                        <>
+                                          <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                                          در حال ارسال...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <i className="bi bi-send me-2"></i>
+                                          ارسال پاسخ
+                                        </>
+                                      )}
+                                    </button>
+                                    <button
+                                      className="btn btn-secondary btn-sm"
+                                      onClick={resetCommentState}
+                                      disabled={commentState.isSubmitting}
+                                    >
+                                      <i className="bi bi-x me-1"></i>
+                                      لغو
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             <div className="d-flex justify-content-between align-items-center mt-2">
                               <small className="text-muted">
                                 {formatDate(message.created_at)}
@@ -543,56 +654,7 @@ export default function MessageboxPage() {
                 </>
               )}
 
-              {/* Comment Form */}
-              {commentState.replyingTo && (
-                <div className="card mt-4 border-primary">
-                  <div className="card-header bg-primary text-white">
-                    <div className="d-flex align-items-center">
-                      <i className="bi bi-chat-dots me-2"></i>
-                      <strong>
-                        {commentState.replyingToComment ? `پاسخ به کامنت ${commentState.replyingToComment.replyTo}:` : 'نوشتن پاسخ:'}
-                      </strong>
-                    </div>
-                  </div>
-                  <div className="card-body">
-                    <textarea
-                      className="form-control mb-2"
-                      rows={3}
-                      placeholder={commentState.replyingToComment ? `پاسخ خود را به ${commentState.replyingToComment.replyTo} بنویسید...` : "پاسخ خود را بنویسید..."}
-                      value={commentState.text}
-                      onChange={(e) => updateCommentState({ text: e.target.value })}
-                      disabled={commentState.isSubmitting}
-                    />
-                    <div className="d-flex gap-2">
-                      <button
-                        className="btn btn-primary"
-                        onClick={() => handleSubmitComment(commentState.replyingTo!)}
-                        disabled={commentState.isSubmitting || !commentState.text.trim()}
-                      >
-                        {commentState.isSubmitting ? (
-                          <>
-                            <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                            در حال ارسال...
-                          </>
-                        ) : (
-                          <>
-                            <i className="bi bi-send me-2"></i>
-                            ارسال پاسخ
-                          </>
-                        )}
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={resetCommentState}
-                        disabled={commentState.isSubmitting}
-                      >
-                        <i className="bi bi-x me-1"></i>
-                        لغو
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Comment Form - حذف شده و به بالای هر پیام منتقل شده */}
             </div>
           </div>
         </div>
