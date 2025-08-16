@@ -580,7 +580,10 @@ export default function MessageboxPage() {
                                   <>
                                     <button
                                       className="btn btn-outline-primary"
-                                      onClick={() => likeMessage(message.id)}
+                                      onClick={() => {
+                                        console.log('Like clicked for message:', message.id);
+                                        likeMessage(message.id);
+                                      }}
                                       title="لایک"
                                     >
                                       <i className="bi bi-heart"></i>
@@ -588,7 +591,10 @@ export default function MessageboxPage() {
                                     </button>
                                     <button
                                       className="btn btn-outline-success"
-                                      onClick={() => toggleComments(message.id)}
+                                      onClick={() => {
+                                        console.log('Toggle comments clicked for message:', message.id);
+                                        toggleComments(message.id);
+                                      }}
                                       title="نمایش پاسخ‌ها"
                                     >
                                       <i className="bi bi-chat"></i>
@@ -596,7 +602,11 @@ export default function MessageboxPage() {
                                     </button>
                                     <button
                                       className="btn btn-outline-info"
-                                      onClick={() => handleCommentMessage(message.id)}
+                                      onClick={() => {
+                                        console.log('Reply clicked for message:', message.id);
+                                        console.log('Current commentState:', commentState);
+                                        handleCommentMessage(message.id);
+                                      }}
                                       title="نوشتن پاسخ"
                                     >
                                       <i className="bi bi-reply"></i>
