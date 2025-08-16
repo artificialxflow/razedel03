@@ -28,8 +28,15 @@ export function useComments(userId: string) {
 
   // Update comment state
   const updateCommentState = useCallback((updates: Partial<CommentState>) => {
-    setCommentState(prev => ({ ...prev, ...updates }));
-  }, []);
+    console.log('updateCommentState called with updates:', updates);
+    console.log('Previous commentState:', commentState);
+    
+    setCommentState(prev => {
+      const newState = { ...prev, ...updates };
+      console.log('New commentState:', newState);
+      return newState;
+    });
+  }, [commentState]);
 
   // Reset comment state
   const resetCommentState = useCallback(() => {
@@ -44,12 +51,17 @@ export function useComments(userId: string) {
 
   // Handle comment message
   const handleCommentMessage = useCallback((messageId: string) => {
+    console.log('handleCommentMessage called with messageId:', messageId);
+    console.log('Current commentState before update:', commentState);
+    
     updateCommentState({
       replyingTo: messageId,
       replyingToComment: null,
       text: '',
     });
-  }, [updateCommentState]);
+    
+    console.log('commentState updated, new replyingTo:', messageId);
+  }, [updateCommentState, commentState]);
 
   // Handle reply to comment
   const handleReplyToComment = useCallback((messageId: string, commentId: string, replyTo: string) => {
