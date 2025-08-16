@@ -1,405 +1,189 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
-import { db, supabase } from "../../lib/supabase";
-
-type Message = {
-  id: string;
-  title: string | null;
-  content: string;
-  content_type: 'text' | 'audio' | 'image';
-  audio_url: string | null;
-  emotion_category: string;
-  is_public: boolean;
-  is_anonymous: boolean;
-  listener_type: 'ai' | 'human' | 'both';
-  ai_response: string | null;
-  human_response: string | null;
-  likes_count: number;
-  comments_count: number;
-  created_at: string;
-  user_id: string;
-  profiles?: {
-    full_name: string | null;
-    username: string | null;
-    email: string;
-  };
-};
-
-type TabType = 'received' | 'sent' | 'responses';
+import { supabase } from "../../lib/supabase";
+import { useMessages } from "../hooks/useMessages";
+import { useComments } from "../hooks/useComments";
+import { useRealTime } from "../hooks/useRealTime";
+import { Message, Comment } from "../hooks/useMessages";
 
 export default function MessageboxPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
   
-  // States
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [activeTab, setActiveTab] = useState<TabType>('sent');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
-  const [commentText, setCommentText] = useState("");
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-  const [comments, setComments] = useState<{[key: string]: any[]}>({});
-  const [loadingComments, setLoadingComments] = useState<{[key: string]: boolean}>({});
-  const [replyingToComment, setReplyingToComment] = useState<{
-    messageId: string;
-    commentId: string;
-    replyTo: string;
-  } | null>(null);
-  const [editingComment, setEditingComment] = useState<{
-    commentId: string;
-    content: string;
-  } | null>(null);
+  // Custom hooks
+  const {
+    messages,
+    activeTab,
+    isLoading,
+    error,
+    selectedMessages,
+    comments,
+    loadingComments,
+    commentNotifications,
+    setError,
+    toggleComments,
+    updateMessageCommentCount,
+    addCommentNotification,
+    handleCommentChange,
+    loadCommentWithProfile,
+    removeCommentFromState,
+    updateCommentInState,
+    handleMessageSelection,
+    handleSelectAll,
+    handleTabChange,
+    setMessages,
+    setSelectedMessages,
+    setCommentNotifications,
+    setComments,
+  } = useMessages(user?.id || '');
+
+  const {
+    commentState,
+    updateCommentState,
+    resetCommentState,
+    handleCommentMessage,
+    handleReplyToComment,
+    handleEditComment,
+    submitComment,
+    submitCommentEdit,
+    deleteComment,
+    likeMessage,
+  } = useComments(user?.id || '');
+
+  // Real-time updates
+  useRealTime(user?.id || '', handleCommentChange);
 
   // Check authentication
-  useEffect(() => {
+  React.useEffect(() => {
     if (!loading && !user) {
       router.replace("/login");
     }
   }, [user, loading, router]);
 
-  // Load messages
-  useEffect(() => {
-    if (user) {
-      loadMessages();
-    }
-  }, [user, activeTab]);
-
-  const loadMessages = async () => {
+  // Handle comment submission
+  const handleSubmitComment = useCallback(async (messageId: string) => {
     try {
-      setIsLoading(true);
-      setError("");
-      
-      let data;
-      let error;
-      
-      // Load different data based on active tab
-      switch (activeTab) {
-        case 'sent':
-          // All user's messages
-          const sentResult = await db.messages.getUserMessages(user!.id);
-          data = sentResult.data;
-          error = sentResult.error;
-          break;
-        case 'received':
-          // Public messages from other users
-          const publicResult = await db.messages.getPublicMessages();
-          data = publicResult.data;
-          error = publicResult.error;
-          // Filter out user's own messages
-          if (data) {
-            data = data.filter(msg => msg.user_id !== user!.id);
-          }
-          break;
-        case 'responses':
-          // پیام‌های کاربر که پاسخ دارند (AI، human یا کامنت)
-          const userResult = await db.messages.getUserMessages(user!.id);
-          data = userResult.data;
-          error = userResult.error;
-          if (data) {
-            data = data.filter(msg => 
-              msg.ai_response || 
-              msg.human_response || 
-              (msg.comments_count && msg.comments_count > 0)
-            );
-          }
-          break;
-        default:
-          data = [];
-          error = null;
-      }
-      
-      if (error) {
-        throw new Error('خطا در بارگذاری پیام‌ها');
-      }
-
-      setMessages(data || []);
-      
-      // بارگذاری خودکار پاسخ‌ها برای پیام‌های ارسالی و پاسخ‌ها
-      if (activeTab === 'sent' || activeTab === 'responses') {
-        for (const message of data || []) {
-          if (message.comments_count && message.comments_count > 0) {
-            await loadComments(message.id);
-          }
+      const newComment = await submitComment(messageId, () => {
+        // Success callback - update message comment count
+        updateMessageCommentCount(messageId, 1);
+        
+        // Add comment to state with profile
+        if (user) {
+          const commentWithProfile = {
+            ...newComment,
+            profiles: {
+              full_name: user.user_metadata?.full_name || null,
+              username: user.user_metadata?.username || null,
+              email: user.email || ''
+            }
+          };
+          
+          setComments(prev => ({
+            ...prev,
+            [messageId]: [...(prev[messageId] || []), commentWithProfile]
+          }));
         }
-      }
+      });
+
     } catch (error) {
       setError(error instanceof Error ? error.message : 'خطای ناشناخته');
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [submitComment, updateMessageCommentCount, user, setError]);
 
-  const handleDeleteMessage = async (messageId: string) => {
-    if (!confirm('آیا مطمئن هستید که می‌خواهید این پیام را حذف کنید؟')) {
-      return;
-    }
-
+  // Handle comment deletion
+  const handleDeleteComment = useCallback(async (commentId: string, messageId: string) => {
     try {
-      const { error } = await db.messages.delete(messageId);
+      await deleteComment(commentId);
       
+      // Update message comment count
+      updateMessageCommentCount(messageId, -1);
+      
+      // Remove comment from state
+      removeCommentFromState(commentId, messageId);
+      
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'خطای ناشناخته');
+    }
+  }, [deleteComment, updateMessageCommentCount, removeCommentFromState, setError]);
+
+  // Handle comment edit
+  const handleSubmitCommentEdit = useCallback(async (commentId: string, newContent: string) => {
+    try {
+      await submitCommentEdit(commentId, newContent);
+      
+      // Update comment in state
+      updateCommentInState({ id: commentId, content: newContent } as Comment);
+      
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'خطای ناشناخته');
+    }
+  }, [submitCommentEdit, updateCommentInState, setError]);
+
+  // Handle message deletion
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', messageId);
+
       if (error) {
         throw new Error('خطا در حذف پیام');
       }
 
       // Remove from local state
       setMessages(prev => prev.filter(msg => msg.id !== messageId));
+      setError('');
+
     } catch (error) {
       setError(error instanceof Error ? error.message : 'خطای ناشناخته');
     }
-  };
+  }, [setError]);
 
-  const handleDeleteSelected = async () => {
+  // Handle bulk message deletion
+  const handleDeleteSelected = useCallback(async () => {
     if (selectedMessages.length === 0) {
       setError('لطفاً پیام‌هایی را برای حذف انتخاب کنید');
       return;
     }
 
-    if (!confirm(`آیا مطمئن هستید که می‌خواهید ${selectedMessages.length} پیام را حذف کنید؟`)) {
-      return;
-    }
-
     try {
-      for (const messageId of selectedMessages) {
-        await db.messages.delete(messageId);
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .in('id', selectedMessages);
+
+      if (error) {
+        throw new Error('خطا در حذف پیام‌ها');
       }
 
       // Remove from local state
       setMessages(prev => prev.filter(msg => !selectedMessages.includes(msg.id)));
       setSelectedMessages([]);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'خطای ناشناخته');
-    }
-  };
-
-  const handleLikeMessage = async (messageId: string) => {
-    try {
-      // TODO: Implement like functionality
-      console.log('Liking message:', messageId);
-      // اینجا باید کد لایک کردن پیام اضافه شود
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'خطای ناشناخته');
-    }
-  };
-
-  const handleCommentMessage = async (messageId: string) => {
-    setReplyingTo(messageId);
-    setCommentText("");
-  };
-
-  const submitComment = async (messageId: string) => {
-    if (!commentText.trim()) {
-      setError('لطفاً متن کامنت را وارد کنید');
-      return;
-    }
-
-    try {
-      setIsSubmittingComment(true);
-      setError("");
-
-      // ارسال کامنت به Supabase
-      const { data, error } = await supabase
-        .from('comments')
-        .insert([
-          {
-            message_id: messageId,
-            user_id: user!.id,
-            content: commentText.trim(),
-            is_anonymous: false
-          }
-        ])
-        .select();
-
-      if (error) {
-        throw new Error('خطا در ارسال کامنت');
-      }
-
-      // به‌روزرسانی تعداد کامنت‌ها در پیام
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId 
-          ? { ...msg, comments_count: (msg.comments_count || 0) + 1 }
-          : msg
-      ));
-
-      // بارگذاری مجدد پاسخ‌ها
-      await loadComments(messageId);
-
-      // پاک کردن فرم
-      setCommentText("");
-      setReplyingTo(null);
-
-      // نمایش پیام موفقیت
-      setError(""); // پاک کردن خطاهای قبلی
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'خطای ناشناخته');
-    } finally {
-      setIsSubmittingComment(false);
-    }
-  };
-
-  const loadComments = async (messageId: string) => {
-    try {
-      setLoadingComments(prev => ({ ...prev, [messageId]: true }));
-      
-      const { data, error } = await supabase
-        .from('comments')
-        .select('*, profiles(*)')
-        .eq('message_id', messageId)
-        .order('created_at', { ascending: true });
-      
-      if (error) {
-        console.error('خطا در بارگذاری پاسخ‌ها:', error);
-        return;
-      }
-      
-      if (data) {
-        setComments(prev => ({ ...prev, [messageId]: data }));
-      }
-    } catch (error) {
-      console.error('خطا در بارگذاری پاسخ‌ها:', error);
-    } finally {
-      setLoadingComments(prev => ({ ...prev, [messageId]: false }));
-    }
-  };
-
-  const toggleComments = async (messageId: string) => {
-    if (comments[messageId]) {
-      // اگر پاسخ‌ها بارگذاری شده‌اند، آن‌ها را مخفی کن
-      setComments(prev => {
-        const newComments = { ...prev };
-        delete newComments[messageId];
-        return newComments;
-      });
-    } else {
-      // اگر پاسخ‌ها بارگذاری نشده‌اند، آن‌ها را بارگذاری کن
-      await loadComments(messageId);
-    }
-  };
-
-  const handleReplyToComment = (messageId: string, commentId: string, replyTo: string) => {
-    setReplyingToComment({ messageId, commentId, replyTo });
-    setCommentText(`@${replyTo} `);
-    setReplyingTo(messageId);
-  };
-
-  const handleEditComment = (commentId: string, currentContent: string) => {
-    setEditingComment({ commentId, content: currentContent });
-  };
-
-  const handleDeleteComment = async (commentId: string, messageId: string) => {
-    if (!confirm('آیا مطمئن هستید که می‌خواهید این کامنت را حذف کنید؟')) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('comments')
-        .delete()
-        .eq('id', commentId);
-
-      if (error) {
-        throw new Error('خطا در حذف کامنت');
-      }
-
-      // به‌روزرسانی تعداد کامنت‌ها در پیام
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId 
-          ? { ...msg, comments_count: Math.max(0, (msg.comments_count || 0) - 1) }
-          : msg
-      ));
-
-      // حذف کامنت از state
-      setComments(prev => ({
-        ...prev,
-        [messageId]: prev[messageId]?.filter(c => c.id !== commentId) || []
-      }));
+      setError('');
 
     } catch (error) {
       setError(error instanceof Error ? error.message : 'خطای ناشناخته');
     }
-  };
+  }, [selectedMessages, setError]);
 
-  const submitCommentEdit = async (commentId: string, newContent: string) => {
-    if (!newContent.trim()) {
-      setError('لطفاً متن کامنت را وارد کنید');
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('comments')
-        .update({ content: newContent.trim() })
-        .eq('id', commentId);
-
-      if (error) {
-        throw new Error('خطا در ویرایش کامنت');
-      }
-
-      // به‌روزرسانی کامنت در state
-      setComments(prev => {
-        const newComments = { ...prev };
-        Object.keys(newComments).forEach(messageId => {
-          newComments[messageId] = newComments[messageId].map(c => 
-            c.id === commentId ? { ...c, content: newContent.trim() } : c
-          );
-        });
-        return newComments;
-      });
-
-      // پاک کردن state ویرایش
-      setEditingComment(null);
-
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'خطای ناشناخته');
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('fa-IR', {
+  // Format date
+  const formatDate = useCallback((dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('fa-IR', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
-    });
-  };
-
-  const getEmotionIcon = (emotion: string) => {
-    const emotionIcons: { [key: string]: string } = {
-      'happy': '😊',
-      'sad': '😢',
-      'angry': '😠',
-      'anxious': '😰',
-      'excited': '🤩',
-      'calm': '😌',
-      'love': '💕',
-      'gratitude': '🙏',
-      'other': '💭'
-    };
-    return emotionIcons[emotion] || '💭';
-  };
-
-  const getEmotionLabel = (emotion: string) => {
-    const emotionLabels: { [key: string]: string } = {
-      'happy': 'شادی',
-      'sad': 'غم',
-      'angry': 'عصبانیت',
-      'anxious': 'اضطراب',
-      'excited': 'هیجان',
-      'calm': 'آرامش',
-      'love': 'عشق',
-      'gratitude': 'شکرگزاری',
-      'other': 'سایر'
-    };
-    return emotionLabels[emotion] || 'سایر';
-  };
+    }).format(date);
+  }, []);
 
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center vh-100">
+      <div className="container mt-5 text-center">
         <div className="spinner-border text-primary" role="status">
           <span className="visually-hidden">در حال بارگذاری...</span>
         </div>
@@ -407,10 +191,29 @@ export default function MessageboxPage() {
     );
   }
 
-  if (!user) return null;
-
   return (
     <div className="container mt-4">
+      <h1 className="text-center mb-4">
+        <i className="bi bi-chat-dots text-primary me-2"></i>
+        صندوق پیام ها
+      </h1>
+      <p className="text-center text-muted mb-4">
+        رازهایی که گفتی اینجا در امنیت کامل نگهداری میشن...
+      </p>
+
+      {/* اعلان‌های کامنت جدید */}
+      {commentNotifications.length > 0 && (
+        <div className="alert alert-info alert-dismissible fade show" role="alert">
+          <i className="bi bi-bell-fill me-2"></i>
+          <strong>پیام جدید!</strong> کامنت جدیدی روی پیام شما ارسال شده است.
+          <button 
+            type="button" 
+            className="btn-close" 
+            onClick={() => setCommentNotifications([])}
+          ></button>
+        </div>
+      )}
+
       <div className="row justify-content-center">
         <div className="col-12 col-lg-10">
           <div className="card shadow-lg border-0 rounded-lg">
@@ -422,244 +225,183 @@ export default function MessageboxPage() {
               </div>
 
               {/* Tabs */}
-              <ul className="nav nav-tabs mb-4" id="messageTabs" role="tablist">
+              <ul className="nav nav-tabs nav-fill mb-4" id="messageTabs" role="tablist">
                 <li className="nav-item" role="presentation">
                   <button
-                    className={`nav-link ${activeTab === 'sent' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('sent')}
+                    className={`nav-link ${activeTab === 'responses' ? 'active' : ''}`}
+                    onClick={() => handleTabChange('responses')}
+                    type="button"
+                    role="tab"
                   >
-                    <i className="bi bi-send me-2"></i>
-                    پیام‌های ارسالی
+                    <i className="bi bi-chat-dots me-2"></i>
+                    پاسخ ها
                   </button>
                 </li>
                 <li className="nav-item" role="presentation">
                   <button
                     className={`nav-link ${activeTab === 'received' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('received')}
+                    onClick={() => handleTabChange('received')}
+                    type="button"
+                    role="tab"
                   >
-                    <i className="bi bi-chat-dots me-2"></i>
-                    پیام‌های دریافتی
+                    <i className="bi bi-inbox me-2"></i>
+                    پیام های دریافتی
                   </button>
                 </li>
                 <li className="nav-item" role="presentation">
                   <button
-                    className={`nav-link ${activeTab === 'responses' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('responses')}
+                    className={`nav-link ${activeTab === 'sent' ? 'active' : ''}`}
+                    onClick={() => handleTabChange('sent')}
+                    type="button"
+                    role="tab"
                   >
-                    <i className="bi bi-chat-heart me-2"></i>
-                    پاسخ‌ها
+                    <i className="bi bi-send me-2"></i>
+                    پیام های ارسالی
                   </button>
                 </li>
               </ul>
 
-              {/* Error Message */}
+              {/* Error Display */}
               {error && (
-                <div className="alert alert-danger text-center py-2 mb-3">
+                <div className="alert alert-danger alert-dismissible fade show" role="alert">
+                  <i className="bi bi-exclamation-triangle me-2"></i>
                   {error}
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setError("")}
+                  ></button>
                 </div>
               )}
 
-              {/* Comment Form */}
-              {replyingTo && (
-                <div className="alert alert-info mb-3">
-                  <div className="d-flex align-items-center mb-2">
-                    <i className="bi bi-chat-dots me-2"></i>
-                    <strong>
-                      {replyingToComment ? `پاسخ به کامنت ${replyingToComment.replyTo}:` : 'نوشتن پاسخ:'}
-                    </strong>
-                  </div>
-                  <textarea
-                    className="form-control mb-2"
-                    rows={3}
-                    placeholder={replyingToComment ? `پاسخ خود را به ${replyingToComment.replyTo} بنویسید...` : "پاسخ خود را بنویسید..."}
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    disabled={isSubmittingComment}
-                  />
-                  <div className="btn-group">
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => submitComment(replyingTo)}
-                      disabled={isSubmittingComment || !commentText.trim()}
-                    >
-                      {isSubmittingComment ? (
-                        <>
-                          <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                          در حال ارسال...
-                        </>
-                      ) : (
-                        <>
-                          <i className="bi bi-send me-1"></i>
-                          ارسال پاسخ
-                        </>
-                      )}
-                    </button>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => {
-                        setReplyingTo(null);
-                        setReplyingToComment(null);
-                        setCommentText("");
-                      }}
-                      disabled={isSubmittingComment}
-                    >
-                      <i className="bi bi-x me-1"></i>
-                      لغو
-                    </button>
-                  </div>
+              {/* Delete Selected Button */}
+              {selectedMessages.length > 0 && (
+                <div className="mb-3">
+                  <button
+                    className="btn btn-danger"
+                    onClick={handleDeleteSelected}
+                  >
+                    <i className="bi bi-trash me-2"></i>
+                    حذف انتخاب شده ({selectedMessages.length})
+                  </button>
                 </div>
               )}
 
-              {/* Loading */}
-              {isLoading && (
-                <div className="text-center py-4">
+              {/* Messages Display */}
+              {isLoading ? (
+                <div className="text-center py-5">
                   <div className="spinner-border text-primary" role="status">
-                    <span className="visually-hidden">در حال بارگذاری...</span>
+                    <span className="visually-hidden">در حال بارگذاری پیام‌ها...</span>
                   </div>
+                  <p className="mt-2 text-muted">در حال بارگذاری پیام‌ها...</p>
                 </div>
-              )}
-
-              {/* Messages List */}
-              {!isLoading && messages.length === 0 && (
-                <div className="text-center py-4">
+              ) : messages.length === 0 ? (
+                <div className="text-center py-5">
                   <i className="bi bi-inbox fs-1 text-muted"></i>
-                  <p className="text-muted mt-2">هیچ پیامی یافت نشد</p>
+                  <p className="mt-2 text-muted">هیچ پیامی یافت نشد</p>
                 </div>
-              )}
-
-              {!isLoading && messages.length > 0 && (
+              ) : (
                 <>
-                  {/* Bulk Actions */}
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                      {selectedMessages.length > 0 && (
-                        <span className="text-muted">
-                          {selectedMessages.length} پیام انتخاب شده
-                        </span>
-                      )}
-                    </div>
-                    <div className="btn-group">
-                      <button
-                        className="btn btn-outline-danger btn-sm"
-                        onClick={handleDeleteSelected}
-                        disabled={selectedMessages.length === 0}
-                      >
-                        <i className="bi bi-trash me-1"></i>
-                        حذف انتخاب شده
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Messages */}
-                  <div className="list-group">
+                  <div className="row">
                     {messages.map((message) => (
-                      <div key={message.id} className="list-group-item list-group-item-action">
-                        <div className="d-flex justify-content-between align-items-start">
-                          <div className="flex-grow-1">
-                            <div className="d-flex align-items-center mb-2">
-                              <input
-                                type="checkbox"
-                                className="form-check-input me-2"
-                                checked={selectedMessages.includes(message.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedMessages(prev => [...prev, message.id]);
-                                  } else {
-                                    setSelectedMessages(prev => prev.filter(id => id !== message.id));
-                                  }
-                                }}
-                              />
-                              <span className="badge bg-secondary me-2">
-                                {getEmotionIcon(message.emotion_category)} {getEmotionLabel(message.emotion_category)}
-                              </span>
-                              {message.is_anonymous && (
-                                <span className="badge bg-warning me-2">ناشناس</span>
-                              )}
-                              {message.is_public && (
-                                <span className="badge bg-success me-2">عمومی</span>
-                              )}
-                              {/* نمایش نام فرستنده برای پیام‌های دریافتی */}
-                              {activeTab === 'received' && message.profiles && (
-                                <span className="badge bg-info me-2">
-                                  <i className="bi bi-person me-1"></i>
-                                  {message.profiles.full_name || message.profiles.username || message.profiles.email}
-                                </span>
-                              )}
+                      <div key={message.id} className="col-12 mb-3">
+                        <div className="card border-0 shadow-sm">
+                          <div className="card-body">
+                            {/* Message Header */}
+                            <div className="d-flex justify-content-between align-items-start mb-2">
+                              <div className="d-flex align-items-center">
+                                <input
+                                  type="checkbox"
+                                  className="form-check-input me-2"
+                                  checked={selectedMessages.includes(message.id)}
+                                  onChange={() => handleMessageSelection(message.id)}
+                                />
+                                {activeTab === 'received' && message.profiles && (
+                                  <div className="me-2">
+                                    <i className="bi bi-person-circle text-primary"></i>
+                                    <span className="text-primary ms-1">
+                                      {message.profiles.full_name || message.profiles.username || message.profiles.email}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="d-flex gap-1">
+                                {message.is_public && (
+                                  <span className="badge bg-success">عمومی</span>
+                                )}
+                                <span className="badge bg-warning text-dark">{message.emotion_category}</span>
+                              </div>
                             </div>
-                            
-                            {message.title && (
-                              <h6 className="mb-2">{message.title}</h6>
-                            )}
-                            
-                            <p className="mb-2">{message.content}</p>
-                            
-                            {message.audio_url && (
-                              <div className="mb-2">
-                                <audio controls className="w-100">
-                                  <source src={message.audio_url} type="audio/webm" />
-                                  مرورگر شما از پخش صدا پشتیبانی نمی‌کند.
-                                </audio>
+
+                            {/* Message Content */}
+                            <h6 className="card-title mb-2">{message.title || 'بدون عنوان'}</h6>
+                            <p className="card-text mb-3">{message.content}</p>
+
+                            {/* Comment Count Display */}
+                            {message.comments_count > 0 && (
+                              <div className="d-flex align-items-center mb-2">
+                                <i className="bi bi-chat-dots text-primary me-2"></i>
+                                <span className="text-primary">
+                                  پاسخ ها ({message.comments_count})
+                                </span>
+                                {!comments[message.id] && (
+                                  <button
+                                    className="btn btn-outline-primary btn-sm ms-2"
+                                    onClick={() => toggleComments(message.id)}
+                                  >
+                                    <i className="bi bi-eye"></i>
+                                    نمایش
+                                  </button>
+                                )}
+                                {comments[message.id] && (
+                                  <button
+                                    className="btn btn-outline-secondary btn-sm ms-2"
+                                    onClick={() => toggleComments(message.id)}
+                                  >
+                                    <i className="bi bi-eye-slash"></i>
+                                    مخفی
+                                  </button>
+                                )}
                               </div>
                             )}
 
-                            {/* Responses */}
-                            {(message.ai_response || message.human_response) && (
-                              <div className="mt-3">
-                                {message.ai_response && (
-                                  <div className="alert alert-info py-2 mb-2">
-                                    <small className="text-muted">پاسخ هوش مصنوعی:</small>
-                                    <p className="mb-0">{message.ai_response}</p>
-                                  </div>
-                                )}
-                                {message.human_response && (
-                                  <div className="alert alert-success py-2 mb-2">
-                                    <small className="text-muted">پاسخ دوست:</small>
-                                    <p className="mb-0">{message.human_response}</p>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* نمایش پاسخ‌ها */}
+                            {/* Comments Display */}
                             {comments[message.id] && (
-                              <div className="mt-3">
-                                <h6 className="text-muted mb-2">
-                                  <i className="bi bi-chat-dots me-1"></i>
-                                  پاسخ‌ها ({comments[message.id].length})
-                                </h6>
-                                {comments[message.id].map(comment => (
-                                  <div key={comment.id} className="alert alert-light py-2 mb-2">
+                              <div className="mt-3 border-start border-primary ps-3">
+                                {comments[message.id].map((comment) => (
+                                  <div key={comment.id} className="mb-2 p-2 bg-light rounded">
                                     <div className="d-flex justify-content-between align-items-start">
                                       <div className="flex-grow-1">
                                         <div className="d-flex align-items-center mb-1">
-                                          <strong className="text-primary me-2">
+                                          <i className="bi bi-person-circle text-primary me-1"></i>
+                                          <span className="text-primary small">
                                             {comment.profiles?.full_name || comment.profiles?.username || comment.profiles?.email}
-                                          </strong>
-                                          <small className="text-muted">
-                                            {formatDate(comment.created_at)}
-                                          </small>
+                                          </span>
                                         </div>
-                                        
-                                        {/* نمایش کامنت یا فرم ویرایش */}
-                                        {editingComment?.commentId === comment.id ? (
+                                        {commentState.editing?.commentId === comment.id ? (
                                           <div className="mb-2">
                                             <textarea
-                                              className="form-control mb-2"
+                                              className="form-control form-control-sm"
                                               rows={2}
-                                              value={editingComment?.content || ''}
-                                              onChange={(e) => setEditingComment(prev => prev ? { ...prev, content: e.target.value } : null)}
+                                              value={commentState.editing.content}
+                                              onChange={(e) => updateCommentState({
+                                                editing: {
+                                                  ...commentState.editing!,
+                                                  content: e.target.value
+                                                }
+                                              })}
                                             />
-                                            <div className="btn-group btn-group-sm">
+                                            <div className="mt-1">
                                               <button
-                                                className="btn btn-success btn-sm"
-                                                onClick={() => editingComment && submitCommentEdit(comment.id, editingComment.content)}
+                                                className="btn btn-success btn-sm me-1"
+                                                onClick={() => handleSubmitCommentEdit(comment.id, commentState.editing!.content)}
                                               >
                                                 <i className="bi bi-check"></i>
                                                 ذخیره
                                               </button>
                                               <button
                                                 className="btn btn-secondary btn-sm"
-                                                onClick={() => setEditingComment(null)}
+                                                onClick={() => updateCommentState({ editing: null })}
                                               >
                                                 <i className="bi bi-x"></i>
                                                 لغو
@@ -667,42 +409,39 @@ export default function MessageboxPage() {
                                             </div>
                                           </div>
                                         ) : (
-                                          <p className="mb-2">{comment.content}</p>
+                                          <p className="mb-1 small">{comment.content}</p>
                                         )}
-                                        
-                                        {/* دکمه‌های تعامل */}
-                                        <div className="btn-group btn-group-sm">
-                                          <button
-                                            className="btn btn-outline-primary btn-sm"
-                                            onClick={() => handleReplyToComment(message.id, comment.id, comment.profiles?.email || 'کاربر')}
-                                            title="پاسخ به این کامنت"
-                                          >
-                                            <i className="bi bi-reply"></i>
-                                            پاسخ
-                                          </button>
-                                          
-                                          {/* دکمه‌های ویرایش و حذف برای کامنت‌های خود کاربر */}
-                                          {comment.user_id === user!.id && (
-                                            <>
-                                              <button
-                                                className="btn btn-outline-warning btn-sm"
-                                                onClick={() => handleEditComment(comment.id, comment.content)}
-                                                title="ویرایش کامنت"
-                                              >
-                                                <i className="bi bi-pencil"></i>
-                                                ویرایش
-                                              </button>
-                                              <button
-                                                className="btn btn-outline-danger btn-sm"
-                                                onClick={() => handleDeleteComment(comment.id, message.id)}
-                                                title="حذف کامنت"
-                                              >
-                                                <i className="bi bi-trash"></i>
-                                                حذف
-                                              </button>
-                                            </>
-                                          )}
-                                        </div>
+                                        <small className="text-muted">{formatDate(comment.created_at)}</small>
+                                      </div>
+                                      <div className="ms-2">
+                                        {comment.user_id === user!.id && (
+                                          <>
+                                            <button
+                                              className="btn btn-outline-info btn-sm me-1"
+                                              onClick={() => handleReplyToComment(message.id, comment.id, comment.profiles?.full_name || comment.profiles?.username || 'کاربر')}
+                                              title="پاسخ به کامنت"
+                                            >
+                                              <i className="bi bi-reply"></i>
+                                              پاسخ
+                                            </button>
+                                            <button
+                                              className="btn btn-outline-warning btn-sm me-1"
+                                              onClick={() => handleEditComment(comment.id, comment.content)}
+                                              title="ویرایش کامنت"
+                                            >
+                                              <i className="bi bi-pencil"></i>
+                                              ویرایش
+                                            </button>
+                                            <button
+                                              className="btn btn-outline-danger btn-sm"
+                                              onClick={() => handleDeleteComment(comment.id, message.id)}
+                                              title="حذف کامنت"
+                                            >
+                                              <i className="bi bi-trash"></i>
+                                              حذف
+                                            </button>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -730,7 +469,7 @@ export default function MessageboxPage() {
                                   <>
                                     <button
                                       className="btn btn-outline-primary"
-                                      onClick={() => handleLikeMessage(message.id)}
+                                      onClick={() => likeMessage(message.id)}
                                       title="لایک"
                                     >
                                       <i className="bi bi-heart"></i>
@@ -774,6 +513,26 @@ export default function MessageboxPage() {
                                     </button>
                                   </>
                                 )}
+                                {/* دکمه‌های تعامل برای تب پاسخ‌ها */}
+                                {activeTab === 'responses' && (
+                                  <>
+                                    <button
+                                      className="btn btn-outline-success"
+                                      onClick={() => toggleComments(message.id)}
+                                      title="نمایش پاسخ‌ها"
+                                    >
+                                      <i className="bi bi-chat"></i>
+                                      <span className="ms-1">{message.comments_count || 0}</span>
+                                    </button>
+                                    <button
+                                      className="btn btn-outline-danger"
+                                      onClick={() => handleDeleteMessage(message.id)}
+                                      title="حذف پیام"
+                                    >
+                                      <i className="bi bi-trash"></i>
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -782,6 +541,57 @@ export default function MessageboxPage() {
                     ))}
                   </div>
                 </>
+              )}
+
+              {/* Comment Form */}
+              {commentState.replyingTo && (
+                <div className="card mt-4 border-primary">
+                  <div className="card-header bg-primary text-white">
+                    <div className="d-flex align-items-center">
+                      <i className="bi bi-chat-dots me-2"></i>
+                      <strong>
+                        {commentState.replyingToComment ? `پاسخ به کامنت ${commentState.replyingToComment.replyTo}:` : 'نوشتن پاسخ:'}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="card-body">
+                    <textarea
+                      className="form-control mb-2"
+                      rows={3}
+                      placeholder={commentState.replyingToComment ? `پاسخ خود را به ${commentState.replyingToComment.replyTo} بنویسید...` : "پاسخ خود را بنویسید..."}
+                      value={commentState.text}
+                      onChange={(e) => updateCommentState({ text: e.target.value })}
+                      disabled={commentState.isSubmitting}
+                    />
+                    <div className="d-flex gap-2">
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => handleSubmitComment(commentState.replyingTo!)}
+                        disabled={commentState.isSubmitting || !commentState.text.trim()}
+                      >
+                        {commentState.isSubmitting ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                            در حال ارسال...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-send me-2"></i>
+                            ارسال پاسخ
+                          </>
+                        )}
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={resetCommentState}
+                        disabled={commentState.isSubmitting}
+                      >
+                        <i className="bi bi-x me-1"></i>
+                        لغو
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </div>
