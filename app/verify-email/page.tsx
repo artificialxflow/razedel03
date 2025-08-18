@@ -3,7 +3,29 @@ import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 
+// Loading fallback component
+function LoadingFallback() {
+  return (
+    <div className="container-fluid">
+      <div className="row align-items-center justify-content-center vh-100">
+        <div className="col-md-6 col-lg-4">
+          <div className="card shadow-lg border-0 rounded-lg p-4">
+            <div className="card-body text-center">
+              <div className="spinner-border text-primary mb-3" role="status">
+                <span className="visually-hidden">در حال بارگذاری...</span>
+              </div>
+              <h4>در حال بارگذاری...</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Component that uses search params
 function VerifyEmailContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState("");
@@ -19,9 +41,9 @@ function VerifyEmailContent() {
     }
 
     // بررسی پارامترهای URL
-    const accessToken = searchParams.get('access_token');
-    const refreshToken = searchParams.get('refresh_token');
-    const type = searchParams.get('type');
+    const accessToken = searchParams?.get('access_token');
+    const refreshToken = searchParams?.get('refresh_token');
+    const type = searchParams?.get('type');
 
     if (type === 'signup' && accessToken) {
       // تایید ایمیل موفق
@@ -91,25 +113,13 @@ function VerifyEmailContent() {
   );
 }
 
+// Dynamic import to avoid build time issues
+const DynamicVerifyEmailContent = dynamic(() => Promise.resolve(VerifyEmailContent), {
+  ssr: false,
+  loading: () => <LoadingFallback />
+});
+
+// Main page component with proper Suspense boundary
 export default function VerifyEmailPage() {
-  return (
-    <Suspense fallback={
-      <div className="container-fluid">
-        <div className="row align-items-center justify-content-center vh-100">
-          <div className="col-md-6 col-lg-4">
-            <div className="card shadow-lg border-0 rounded-lg p-4">
-              <div className="card-body text-center">
-                <div className="spinner-border text-primary mb-3" role="status">
-                  <span className="visually-hidden">در حال بارگذاری...</span>
-                </div>
-                <h4>در حال بارگذاری...</h4>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    }>
-      <VerifyEmailContent />
-    </Suspense>
-  );
+  return <DynamicVerifyEmailContent />;
 }
