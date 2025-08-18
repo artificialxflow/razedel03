@@ -1,10 +1,10 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from 'next/link';
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState("");
   const router = useRouter();
@@ -88,5 +88,28 @@ export default function VerifyEmailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <div className="container-fluid">
+        <div className="row align-items-center justify-content-center vh-100">
+          <div className="col-md-6 col-lg-4">
+            <div className="card shadow-lg border-0 rounded-lg p-4">
+              <div className="card-body text-center">
+                <div className="spinner-border text-primary mb-3" role="status">
+                  <span className="visually-hidden">در حال بارگذاری...</span>
+                </div>
+                <h4>در حال بارگذاری...</h4>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
   );
 }
